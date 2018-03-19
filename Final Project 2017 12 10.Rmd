@@ -1,0 +1,116 @@
+---
+title: 'Problem Set #4 - Yannie Lee'
+author: 'Experiment Design: Alex & Coco'
+output:
+  pdf_document: 
+    latex_engine: xelatex
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE,echo = TRUE)
+```
+
+```{r}
+# load packages 
+library(foreign)
+```
+```{r, message=FALSE}
+library(stargazer)
+#Define Useful Funcions
+RobustSE <- function(model){
+  #plot(model, which =2) #errors are no homoskedastic, so compute robust standard errors
+  model$se = sqrt(diag((vcov(model))))
+  stargazer(model, se=list(model$se), header=F, type="text")
+}
+```
+
+```{r}
+data <- read.csv("./Final_Project_data_v2.csv")
+head(data)
+data
+``` 
+b0 = baseline blood pressure (before treatments)
+b1 = change in blood pressure due to watching mindfulness video before social media consumption
+b2 = change in blood pressure due to 5 minutes of social media consumption
+b3 = change in blood pressure due to watching mindfulness video after social media consumption
+
+The assumptions needed to identify this causal effect based on the within-subject design are:
+- no anticipation - which means that the potential outcome are unaffected by treatments that are administered in the future
+(when social media is first, no impact on facebook changes in future + vice versa)
+- no persistence - potential outcomes in one period are unaffected by previous treatments
+
+```{r}
+#eda
+table <- xtabs(~data$Race + data$Gender)
+table
+23+13+12
+
+table <- xtabs(~ data$Age)
+table
+hist(data$Age, breaks  = 20, main = "Histogram of Age Data", xlab = "Age")
+
+table <- xtabs(~ data$facebook.usage)
+table
+table <- xtabs(~ data$meditation)
+table
+
+table <- xtabs(~ data$facebook.usage + data$meditation)
+table
+
+table <- xtabs(~ data$marital_status + data$no.of.kids)
+table
+
+sum(data$Meditation_first)
+sum(data$Facebook_First)
+```
+
+```{r}
+fit_b1 <- lm(BP2 ~ b1+b2_social_media+b3, data=data)
+summary(fit_b1)
+
+fit_b2 <- lm(BP2 ~ BP0 + Meditation_first, data=na.omit(data))
+summary(fit_b2)
+
+###
+#covariate adjusted models
+#male/female
+#asian, caucasion
+#meditation familiarity
+
+fit_b2 <- lm(I(BP1 - BP0) ~  Meditation_first, data=na.omit(data))
+RobustSE(fit_b2)
+
+fit_b2 <- lm(b3_meditation ~  Meditation_first, data=na.omit(data))
+RobustSE(fit_b2)
+
+fit_b2 <- lm(b2_social_media ~  Meditation_first, data=na.omit(data))
+RobustSE(fit_b2)
+
+
+``` 
+
+
+
+```{r}
+library(data.table)
+data <- read.csv("./Final_Project_data_v2.csv")
+fpdt<-as.data.table(data)
+fpdt[,BPbase:=BP0]
+fpdt[Meditation_First=='Y',`:=`(BPmind=BP1, BPsocial=BP2, BPmind1=BP1)]
+fpdt[Meditation_First=='N',`:=`(BPmind=BP2, BPsocial=BP1, BPmind2=BP2)]
+# interaction model
+melted<-melt(fpdt, measure.vars=c('BPbase', 'BPmind', 'BPsocial'), id.vars=c('subject', 'Gender', 'Meditation_first'))
+model_interaction<-lm(value ~ Meditation_first*variable + subject, data=melted)
+# David's model
+melted<-melt(fpdt, measure.vars=c('BPbase', 'BPmind1', 'BPsocial', 'BPmind2'))
+model_original<-lm(value ~ variable + Gender + marital_status, data=na.omit(melted))
+summary(model_original)
+
+table(data$marital_status)
+
+rawdt[,.(base_mean=mean(BP0), base_stdev=sd(BP0), base_median=median(BP0)),by=Meditation_First]
+
+na.omit(rawdt[,.(Meditation_First, map0=(map0a+map0b)/2)])[,.(base_mean=mean(map0), base_stdev=sd(map0), base_median=median(map0)),by=Meditation_First]
+```
+
